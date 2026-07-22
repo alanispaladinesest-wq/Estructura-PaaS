@@ -1,0 +1,14 @@
+{
+  "name": "estructura-paas",
+  "version": "1.0.0",
+  "description": "Proyecto Web con Arquitectura PaaS y Seguridad Hardened",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "mysql2": "^3.6.5"
+  }
+}
