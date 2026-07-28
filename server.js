@@ -49,6 +49,24 @@ db.connect((err) => {
     console.error('Error al conectar a Clever Cloud MySQL:', err);
   } else {
     console.log('Conexión exitosa a la base de datos en Clever Cloud');
+
+    // Crear la tabla de clientes automáticamente si no existe
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS clientes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    db.query(createTableQuery, (tableErr) => {
+      if (tableErr) {
+        console.error('Error al verificar/crear tabla clientes:', tableErr);
+      } else {
+        console.log('Tabla "clientes" lista en Clever Cloud.');
+      }
+    });
   }
 });
 
@@ -85,7 +103,7 @@ app.post('/api/registro', async (req, res) => {
     db.query(query, [nombre, email, passwordHash], (err, result) => {
       if (err) {
         console.error('Error al registrar usuario:', err);
-        return res.status(500).json({ error: 'Error al registrar el cliente' });
+        return res.status(500).json({ error: 'Error al registrar el cliente (posible email duplicado)' });
       }
       res.json({ mensaje: 'Usuario registrado de forma segura' });
     });
