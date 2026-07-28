@@ -1,84 +1,130 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tienda Segura PaaS</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; text-align: center; }
-        .header { background: #1a73e8; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        .box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 400px; margin: 10px auto; }
-        .grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; }
-        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); width: 220px; }
-        .card img { width: 100%; border-radius: 5px; height: 140px; object-fit: cover; }
-        input { width: 90%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
-        button { background: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 8px; font-weight: bold; }
-        button:hover { background: #218838; }
-        .badge { background: #e8f0fe; color: #1a73e8; padding: 5px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-Commerce PaaS</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; padding: 0; }
+    .header { background-color: #1877f2; color: white; text-align: center; padding: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .badge { background: rgba(255,255,255,0.2); padding: 5px 12px; border-radius: 15px; font-size: 0.85em; display: inline-block; margin-top: 10px; }
+    .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+    .card { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 30px; }
+    .card h2 { margin-top: 0; text-align: center; }
+    .form-group { margin-bottom: 15px; }
+    input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+    button { width: 100%; background: #28a745; color: white; border: none; padding: 12px; border-radius: 5px; font-size: 16px; cursor: pointer; font-weight: bold; }
+    button:hover { background: #218838; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+    .product-card { background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; padding-bottom: 15px; }
+    .product-card img { width: 100%; height: 180px; object-fit: cover; }
+    .product-card h3 { margin: 15px 0 5px; }
+    .product-card p { color: #666; margin: 5px 0 15px; }
+    .btn-buy { width: 80%; background: #007bff; margin: 0 auto; display: block; }
+    .btn-buy:hover { background: #0069d9; }
+  </style>
 </head>
 <body>
 
-    <div class="header">
-        <h1>🛒 E-Commerce con Arquitectura PaaS</h1>
-        <span class="badge">🔒 HTTPS + Bcrypt + Helmet.js + Prepared Statements</span>
+  <div class="header">
+    <h1>🛒 E-Commerce con Arquitectura PaaS</h1>
+    <span class="badge">🔒 HTTPS + Bcrypt + Helmet.js + Prepared Statements</span>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h2>Crear Cuenta Cliente</h2>
+      <form id="registroForm">
+        <div class="form-group">
+          <input type="text" id="nombre" placeholder="Nombre completo" required>
+        </div>
+        <div class="form-group">
+          <input type="email" id="email" placeholder="Correo electrónico" required>
+        </div>
+        <div class="form-group">
+          <input type="password" id="password" placeholder="Contraseña (se cifrará con Bcrypt)" required>
+        </div>
+        <button type="submit">Registrarse</button>
+      </form>
     </div>
 
-    <div class="box">
-        <h3>Crear Cuenta Cliente</h3>
-        <input type="text" id="reg-nombre" placeholder="Nombre completo">
-        <input type="email" id="reg-email" placeholder="Correo electrónico">
-        <input type="password" id="reg-pass" placeholder="Contraseña (se cifrará con Bcrypt)">
-        <button onclick="registrarUsuario()">Registrarse</button>
+    <h2 style="text-align: center; margin-bottom: 20px;">Catálogo de Productos</h2>
+    <div class="grid" id="productosContainer">
+      <!-- Los productos se cargan dinámicamente -->
     </div>
+  </div>
 
-    <h2>Catálogo de Productos</h2>
-    <div id="catalogo" class="grid"></div>
+  <script>
+    // Cargar productos al iniciar
+    async function cargarProductos() {
+      try {
+        const res = await fetch('/api/productos');
+        const productos = await res.json();
+        const container = document.getElementById('productosContainer');
+        container.innerHTML = '';
 
-    <script>
-        async function cargarProductos() {
-            const res = await fetch('/api/productos');
-            const productos = await res.json();
-            const container = document.getElementById('catalogo');
-            
-            container.innerHTML = productos.map(p => `
-                <div class="card">
-                    <img src="${p.imagen_url}" alt="${p.nombre}">
-                    <h4>${p.nombre}</h4>
-                    <p><strong>$${p.precio}</strong> | Stock: ${p.stock}</p>
-                    <button onclick="comprar(${p.id}, ${p.precio})">Comprar Ahora</button>
-                </div>
-            `).join('');
+        productos.forEach(p => {
+          container.innerHTML += `
+            <div class="product-card">
+              <img src="${p.imagen_url}" alt="${p.nombre}">
+              <h3>${p.nombre}</h3>
+              <p>$${p.precio} | Stock: ${p.stock}</p>
+              <button class="btn-buy" onclick="comprarProducto(${p.id})">Comprar</button>
+            </div>
+          `;
+        });
+      } catch (err) {
+        console.error("Error al obtener productos:", err);
+      }
+    }
+
+    // Registrar Usuario
+    document.getElementById('registroForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nombre = document.getElementById('nombre').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        const res = await fetch('/api/registro', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre, email, password })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          alert('✅ ' + data.mensaje);
+          document.getElementById('registroForm').reset();
+        } else {
+          alert('❌ Error: ' + (data.error || 'No se pudo registrar'));
         }
+      } catch (err) {
+        alert('❌ Error de conexión con el servidor');
+      }
+    });
 
-        async function registrarUsuario() {
-            const nombre = document.getElementById('reg-nombre').value;
-            const email = document.getElementById('reg-email').value;
-            const password = document.getElementById('reg-pass').value;
+    // Comprar Producto
+    async function comprarProducto(id) {
+      try {
+        const res = await fetch('/api/comprar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
 
-            const res = await fetch('/api/registro', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nombre, email, password })
-            });
-
-            const data = await res.json();
-            alert(data.message);
+        const data = await res.json();
+        if (res.ok) {
+          alert('🛍️ ' + data.mensaje);
+          cargarProductos(); // Recargar el stock actualizado
+        } else {
+          alert('❌ ' + data.error);
         }
+      } catch (err) {
+        alert('❌ Error al procesar la compra');
+      }
+    }
 
-        async function comprar(id, precio) {
-            const res = await fetch('/api/comprar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ producto_id: id, precio: precio })
-            });
-
-            const data = await res.json();
-            alert(data.message);
-            cargarProductos();
-        }
-
-        cargarProductos();
-    </script>
+    cargarProductos();
+  </script>
 </body>
-</html>
