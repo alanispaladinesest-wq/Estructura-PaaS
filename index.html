@@ -1,21 +1,84 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Proyecto PaaS - VulnCheck</title>
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f4f4f9; }
-    .card { background: white; padding: 20px; display: inline-block; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-    h1 { color: #333; }
-    p { color: #666; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tienda Segura PaaS</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; text-align: center; }
+        .header { background: #1a73e8; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 400px; margin: 10px auto; }
+        .grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; }
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); width: 220px; }
+        .card img { width: 100%; border-radius: 5px; height: 140px; object-fit: cover; }
+        input { width: 90%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 8px; font-weight: bold; }
+        button:hover { background: #218838; }
+        .badge { background: #e8f0fe; color: #1a73e8; padding: 5px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+    </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Estructura de Despliegue PaaS</h1>
-    <p>Aplicación web Node.js desplegada en entorno gestionado.</p>
-    <p><strong>Estado de Seguridad:</strong> Cabeceras sanitizadas con Helmet.js</p>
-  </div>
+
+    <div class="header">
+        <h1>🛒 E-Commerce con Arquitectura PaaS</h1>
+        <span class="badge">🔒 HTTPS + Bcrypt + Helmet.js + Prepared Statements</span>
+    </div>
+
+    <div class="box">
+        <h3>Crear Cuenta Cliente</h3>
+        <input type="text" id="reg-nombre" placeholder="Nombre completo">
+        <input type="email" id="reg-email" placeholder="Correo electrónico">
+        <input type="password" id="reg-pass" placeholder="Contraseña (se cifrará con Bcrypt)">
+        <button onclick="registrarUsuario()">Registrarse</button>
+    </div>
+
+    <h2>Catálogo de Productos</h2>
+    <div id="catalogo" class="grid"></div>
+
+    <script>
+        async function cargarProductos() {
+            const res = await fetch('/api/productos');
+            const productos = await res.json();
+            const container = document.getElementById('catalogo');
+            
+            container.innerHTML = productos.map(p => `
+                <div class="card">
+                    <img src="${p.imagen_url}" alt="${p.nombre}">
+                    <h4>${p.nombre}</h4>
+                    <p><strong>$${p.precio}</strong> | Stock: ${p.stock}</p>
+                    <button onclick="comprar(${p.id}, ${p.precio})">Comprar Ahora</button>
+                </div>
+            `).join('');
+        }
+
+        async function registrarUsuario() {
+            const nombre = document.getElementById('reg-nombre').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-pass').value;
+
+            const res = await fetch('/api/registro', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre, email, password })
+            });
+
+            const data = await res.json();
+            alert(data.message);
+        }
+
+        async function comprar(id, precio) {
+            const res = await fetch('/api/comprar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ producto_id: id, precio: precio })
+            });
+
+            const data = await res.json();
+            alert(data.message);
+            cargarProductos();
+        }
+
+        cargarProductos();
+    </script>
 </body>
 </html>
