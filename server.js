@@ -8,16 +8,16 @@ const cors = require('cors');
 
 const app = express();
 
-// Necesario en Render para que rateLimit identifique correctamente la IP tras el proxy
 app.set('trust proxy', 1);
 
-// Configuración de Helmet ajustada
+// Configuración de Helmet ajustada para eventos de script
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrcAttr: ["'unsafe-inline'"], // Permite los atributos onclick
         imgSrc: ["'self'", "data:", "https://images.unsplash.com"],
       },
     },
@@ -26,7 +26,6 @@ app.use(
 
 app.use(cors());
 
-// Limitador de peticiones
 const limonadorPeticiones = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -38,7 +37,6 @@ app.use('/api/', limonadorPeticiones);
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Conexión a Clever Cloud MySQL
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -53,7 +51,6 @@ db.connect((err) => {
   } else {
     console.log('Conexión exitosa a la base de datos en Clever Cloud');
 
-    // 1. Crear tabla de clientes
     const createClientes = `
       CREATE TABLE IF NOT EXISTS clientes (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -63,12 +60,8 @@ db.connect((err) => {
         fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `;
-    db.query(createClientes, (err) => {
-      if (err) console.error('Error al crear tabla clientes:', err);
-      else console.log('Tabla "clientes" lista.');
-    });
+    db.query(createClientes);
 
-    // 2. Crear tabla de productos e insertar iniciales
     const createProductos = `
       CREATE TABLE IF NOT EXISTS productos (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -79,10 +72,7 @@ db.connect((err) => {
       );
     `;
     db.query(createProductos, (err) => {
-      if (err) {
-        console.error('Error al crear tabla productos:', err);
-      } else {
-        console.log('Tabla "productos" lista.');
+      if (!err) {
         db.query('SELECT COUNT(*) as count FROM productos', (countErr, rows) => {
           if (!countErr && rows && rows[0].count === 0) {
             const seedQuery = `
@@ -98,12 +88,10 @@ db.connect((err) => {
   }
 });
 
-// Servir Frontend
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// API: Obtener productos
 app.get('/api/productos', (req, res) => {
   db.query('SELECT * FROM productos', (err, results) => {
     if (err) return res.status(500).json({ error: 'Error al consultar productos' });
@@ -111,30 +99,24 @@ app.get('/api/productos', (req, res) => {
   });
 });
 
-// API: Registrar cliente con Bcrypt
 app.post('/api/registro', async (req, res) => {
   const { nombre, email, password } = req.body;
   if (!nombre || !email || !password) return res.status(400).json({ error: 'Campos incompletos' });
 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-    db.query(
-      'INSERT INTO clientes (nombre, email, password_hash) VALUES (?, ?, ?)', 
+    db.query('INSERT INTO clientes (nombre, email, password_hash) VALUES (?, ?, ?)', 
       [nombre, email, passwordHash], 
       (err) => {
-        if (err) {
-          console.error('Error al insertar cliente:', err);
-          return res.status(500).json({ error: 'El correo ya está registrado o falló la BD' });
-        }
+        if (err) return res.status(500).json({ error: 'El correo ya existe o hubo un error' });
         res.json({ mensaje: 'Usuario registrado de forma segura' });
       }
     );
-  } catch (error) {
-    res.status(500).json({ error: 'Error interno en encriptación' });
+  } catch {
+    res.status(500).json({ error: 'Error interno' });
   }
 });
 
-// API: Comprar producto (Descuenta Stock)
 app.post('/api/comprar', (req, res) => {
   const { id } = req.body;
   if (!id) return res.status(400).json({ error: 'ID de producto no enviado' });

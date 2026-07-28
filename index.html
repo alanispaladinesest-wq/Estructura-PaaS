@@ -50,33 +50,31 @@
 
     <h2 style="text-align: center; margin-bottom: 20px;">Catálogo de Productos</h2>
     <div class="grid" id="productosContainer">
-      <!-- Los productos se cargan dinámicamente -->
+      <!-- Carga dinámica -->
     </div>
   </div>
 
   <script>
-    // Función global para comprar producto
-    window.comprarProducto = async function(id) {
+    async function comprarProducto(id) {
       try {
         const res = await fetch('/api/comprar', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: id })
+          body: JSON.stringify({ id })
         });
 
         const data = await res.json();
         if (res.ok) {
           alert('🛍️ ' + data.mensaje);
-          cargarProductos(); // Recargar el stock actualizado inmediatamente
+          cargarProductos();
         } else {
           alert('❌ ' + (data.error || 'Error al comprar'));
         }
       } catch (err) {
-        alert('❌ Error de conexión con el servidor al comprar');
+        alert('❌ Error al conectar con el servidor');
       }
-    };
+    }
 
-    // Función global para cargar productos
     async function cargarProductos() {
       try {
         const res = await fetch('/api/productos');
@@ -85,21 +83,24 @@
         container.innerHTML = '';
 
         productos.forEach(p => {
-          container.innerHTML += `
-            <div class="product-card">
-              <img src="${p.imagen_url}" alt="${p.nombre}">
-              <h3>${p.nombre}</h3>
-              <p>Precio: $${p.precio} | Stock: <strong>${p.stock}</strong></p>
-              <button class="btn-buy" onclick="window.comprarProducto(${p.id})">Comprar</button>
-            </div>
+          const card = document.createElement('div');
+          card.className = 'product-card';
+          card.innerHTML = `
+            <img src="${p.imagen_url}" alt="${p.nombre}">
+            <h3>${p.nombre}</h3>
+            <p>Precio: $${p.precio} | Stock: <strong>${p.stock}</strong></p>
+            <button class="btn-buy">Comprar</button>
           `;
+          
+          // Asignar evento de forma segura sin usar atributos inline
+          card.querySelector('.btn-buy').addEventListener('click', () => comprarProducto(p.id));
+          container.appendChild(card);
         });
       } catch (err) {
         console.error("Error al obtener productos:", err);
       }
     }
 
-    // Registrar Usuario
     document.getElementById('registroForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const nombre = document.getElementById('nombre').value;
@@ -121,11 +122,10 @@
           alert('❌ Error: ' + (data.error || 'No se pudo registrar'));
         }
       } catch (err) {
-        alert('❌ Error de conexión con el servidor');
+        alert('❌ Error de conexión');
       }
     });
 
-    // Cargar productos automáticamente
     cargarProductos();
   </script>
 </body>
