@@ -8,7 +8,7 @@ const cors = require('cors');
 
 const app = express();
 
-// Configuración de Helmet ajustada para permitir scripts e imágenes inline
+// Configuración de Helmet para permitir scripts e imágenes inline
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -23,10 +23,10 @@ app.use(
 
 app.use(cors());
 
-// Limitador de peticiones para prevenir ataques de fuerza bruta
+// Limitador de peticiones para prevenir fuerza bruta
 const limonadorPeticiones = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // Límite de 100 solicitudes por IP
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: { status: 429, message: 'Demasiadas solicitudes. Intenta en 15 minutos.' }
 });
 
@@ -35,7 +35,7 @@ app.use('/api/', limonadorPeticiones);
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Conexión a la base de datos Clever Cloud usando variables de entorno
+// Conexión a Clever Cloud MySQL
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -50,8 +50,8 @@ db.connect((err) => {
   } else {
     console.log('Conexión exitosa a la base de datos en Clever Cloud');
 
-    // Crear la tabla de clientes automáticamente si no existe
-    const createTableQuery = `
+    // Tabla de clientes
+    const createClientes = `
       CREATE TABLE IF NOT EXISTS clientes (
         id INT AUTO_INCREMENT PRIMARY KEY,
         nombre VARCHAR(255) NOT NULL,
@@ -60,83 +60,84 @@ db.connect((err) => {
         fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `;
-    db.query(createTableQuery, (tableErr) => {
-      if (tableErr) {
-        console.error('Error al verificar/crear tabla clientes:', tableErr);
-      } else {
-        console.log('Tabla "clientes" lista en Clever Cloud.');
+    db.query(createClientes);
+
+    // Tabla de productos
+    const createProductos = `
+      CREATE TABLE IF NOT EXISTS productos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(255) NOT NULL,
+        precio DECIMAL(10,2) NOT NULL,
+        stock INT NOT NULL,
+        imagen_url TEXT
+      );
+    `;
+    db.query(createProductos, (pErr) => {
+      if (!pErr) {
+        // Insertar productos por defecto si la tabla está vacía
+        db.query('SELECT COUNT(*) as count FROM productos', (err, rows) => {
+          if (rows && rows[0].count === 0) {
+            const seedQuery = `
+              INSERT INTO productos (nombre, precio, stock, imagen_url) VALUES 
+              ('Laptop Gamer', 1200.00, 10, 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=500'),
+              ('Audífonos Pro', 150.00, 20, 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500');
+            `;
+            db.query(seedQuery);
+          }
+        });
       }
     });
   }
 });
 
-// Ruta principal para servir la página de la tienda
+// Servir frontend
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // API: Obtener productos
 app.get('/api/productos', (req, res) => {
-  const query = 'SELECT * FROM productos';
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error al consultar productos:', err);
-      return res.status(500).json({ error: 'Error en el servidor al obtener productos' });
-    }
+  db.query('SELECT * FROM productos', (err, results) => {
+    if (err) return res.status(500).json({ error: 'Error al consultar productos' });
     res.json(results);
   });
 });
 
-// API: Registrar cliente con contraseña encriptada (Bcrypt)
+// API: Registrar cliente con Bcrypt
 app.post('/api/registro', async (req, res) => {
   const { nombre, email, password } = req.body;
-
-  if (!nombre || !email || !password) {
-    return res.status(400).json({ error: 'Todos los campos son obligatorios' });
-  }
+  if (!nombre || !email || !password) return res.status(400).json({ error: 'Campos incompletos' });
 
   try {
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-
-    const query = 'INSERT INTO clientes (nombre, email, password_hash) VALUES (?, ?, ?)';
-    db.query(query, [nombre, email, passwordHash], (err, result) => {
-      if (err) {
-        console.error('Error al registrar usuario:', err);
-        return res.status(500).json({ error: 'Error al registrar el cliente (posible email duplicado)' });
+    const passwordHash = await bcrypt.hash(password, 10);
+    db.query('INSERT INTO clientes (nombre, email, password_hash) VALUES (?, ?, ?)', 
+      [nombre, email, passwordHash], 
+      (err) => {
+        if (err) return res.status(500).json({ error: 'El correo ya existe o hubo un error' });
+        res.json({ mensaje: 'Usuario registrado de forma segura' });
       }
-      res.json({ mensaje: 'Usuario registrado de forma segura' });
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Error al procesar la contraseña' });
+    );
+  } catch {
+    res.status(500).json({ error: 'Error interno' });
   }
 });
 
-// API: Comprar producto (Reduce el stock)
+// API: Comprar producto (Descuenta Stock)
 app.post('/api/comprar', (req, res) => {
   const { id } = req.body;
+  if (!id) return res.status(400).json({ error: 'ID de producto no enviado' });
 
-  const queryCheck = 'SELECT stock FROM productos WHERE id = ?';
-  db.query(queryCheck, [id], (err, results) => {
-    if (err || results.length === 0) {
-      return res.status(400).json({ error: 'Producto no encontrado' });
-    }
+  db.query('SELECT stock FROM productos WHERE id = ?', [id], (err, results) => {
+    if (err || results.length === 0) return res.status(400).json({ error: 'Producto no encontrado' });
+    if (results[0].stock <= 0) return res.status(400).json({ error: 'Producto agotado' });
 
-    if (results[0].stock <= 0) {
-      return res.status(400).json({ error: 'Producto agotado' });
-    }
-
-    const queryUpdate = 'UPDATE productos SET stock = stock - 1 WHERE id = ?';
-    db.query(queryUpdate, [id], (err, result) => {
-      if (err) {
-        return res.status(500).json({ error: 'Error al realizar la compra' });
-      }
+    db.query('UPDATE productos SET stock = stock - 1 WHERE id = ?', [id], (err) => {
+      if (err) return res.status(500).json({ error: 'Error al procesar compra' });
       res.json({ mensaje: 'Compra realizada con éxito' });
     });
   });
 });
 
-// Puerto de ejecución del servidor PaaS
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Servidor de Tienda Segura PaaS activo en puerto ${PORT}`);
