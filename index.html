@@ -55,7 +55,28 @@
   </div>
 
   <script>
-    // Cargar productos al iniciar
+    // Función global para comprar producto
+    window.comprarProducto = async function(id) {
+      try {
+        const res = await fetch('/api/comprar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: id })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          alert('🛍️ ' + data.mensaje);
+          cargarProductos(); // Recargar el stock actualizado inmediatamente
+        } else {
+          alert('❌ ' + (data.error || 'Error al comprar'));
+        }
+      } catch (err) {
+        alert('❌ Error de conexión con el servidor al comprar');
+      }
+    };
+
+    // Función global para cargar productos
     async function cargarProductos() {
       try {
         const res = await fetch('/api/productos');
@@ -68,8 +89,8 @@
             <div class="product-card">
               <img src="${p.imagen_url}" alt="${p.nombre}">
               <h3>${p.nombre}</h3>
-              <p>$${p.precio} | Stock: ${p.stock}</p>
-              <button class="btn-buy" onclick="comprarProducto(${p.id})">Comprar</button>
+              <p>Precio: $${p.precio} | Stock: <strong>${p.stock}</strong></p>
+              <button class="btn-buy" onclick="window.comprarProducto(${p.id})">Comprar</button>
             </div>
           `;
         });
@@ -104,27 +125,8 @@
       }
     });
 
-    // Comprar Producto
-    async function comprarProducto(id) {
-      try {
-        const res = await fetch('/api/comprar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id })
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-          alert('🛍️ ' + data.mensaje);
-          cargarProductos(); // Recargar el stock actualizado
-        } else {
-          alert('❌ ' + data.error);
-        }
-      } catch (err) {
-        alert('❌ Error al procesar la compra');
-      }
-    }
-
+    // Cargar productos automáticamente
     cargarProductos();
   </script>
 </body>
+</html>
