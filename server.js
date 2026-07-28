@@ -8,7 +8,10 @@ const cors = require('cors');
 
 const app = express();
 
-// Configuración de Helmet para permitir scripts e imágenes inline
+// Necesario en Render para que rateLimit identifique correctamente la IP tras el proxy
+app.set('trust proxy', 1);
+
+// Configuración de Helmet ajustada
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -23,7 +26,7 @@ app.use(
 
 app.use(cors());
 
-// Limitador de peticiones para prevenir fuerza bruta
+// Limitador de peticiones
 const limonadorPeticiones = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -50,7 +53,7 @@ db.connect((err) => {
   } else {
     console.log('Conexión exitosa a la base de datos en Clever Cloud');
 
-    // Tabla de clientes
+    // 1. Crear tabla de clientes
     const createClientes = `
       CREATE TABLE IF NOT EXISTS clientes (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -60,9 +63,12 @@ db.connect((err) => {
         fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `;
-    db.query(createClientes);
+    db.query(createClientes, (err) => {
+      if (err) console.error('Error al crear tabla clientes:', err);
+      else console.log('Tabla "clientes" lista.');
+    });
 
-    // Tabla de productos
+    // 2. Crear tabla de productos e insertar iniciales
     const createProductos = `
       CREATE TABLE IF NOT EXISTS productos (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -72,11 +78,13 @@ db.connect((err) => {
         imagen_url TEXT
       );
     `;
-    db.query(createProductos, (pErr) => {
-      if (!pErr) {
-        // Insertar productos por defecto si la tabla está vacía
-        db.query('SELECT COUNT(*) as count FROM productos', (err, rows) => {
-          if (rows && rows[0].count === 0) {
+    db.query(createProductos, (err) => {
+      if (err) {
+        console.error('Error al crear tabla productos:', err);
+      } else {
+        console.log('Tabla "productos" lista.');
+        db.query('SELECT COUNT(*) as count FROM productos', (countErr, rows) => {
+          if (!countErr && rows && rows[0].count === 0) {
             const seedQuery = `
               INSERT INTO productos (nombre, precio, stock, imagen_url) VALUES 
               ('Laptop Gamer', 1200.00, 10, 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=500'),
@@ -90,7 +98,7 @@ db.connect((err) => {
   }
 });
 
-// Servir frontend
+// Servir Frontend
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -110,15 +118,19 @@ app.post('/api/registro', async (req, res) => {
 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-    db.query('INSERT INTO clientes (nombre, email, password_hash) VALUES (?, ?, ?)', 
+    db.query(
+      'INSERT INTO clientes (nombre, email, password_hash) VALUES (?, ?, ?)', 
       [nombre, email, passwordHash], 
       (err) => {
-        if (err) return res.status(500).json({ error: 'El correo ya existe o hubo un error' });
+        if (err) {
+          console.error('Error al insertar cliente:', err);
+          return res.status(500).json({ error: 'El correo ya está registrado o falló la BD' });
+        }
         res.json({ mensaje: 'Usuario registrado de forma segura' });
       }
     );
-  } catch {
-    res.status(500).json({ error: 'Error interno' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error interno en encriptación' });
   }
 });
 
