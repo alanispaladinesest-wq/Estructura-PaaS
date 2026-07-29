@@ -5,6 +5,9 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'clave_secreta_super_segura';
 
 const app = express();
 
@@ -17,7 +20,7 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrcAttr: ["'unsafe-inline'"], // Permite los atributos onclick
+        scriptSrcAttr: ["'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https://images.unsplash.com"],
       },
     },
@@ -37,6 +40,7 @@ app.use('/api/', limonadorPeticiones);
 app.use(express.json());
 app.use(express.static(__dirname));
 
+// Base de Datos
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -88,6 +92,30 @@ db.connect((err) => {
   }
 });
 
+// =========================================================================
+// 🔒 AQUÍ PONELAS LA FUNCIÓN MIDDLEWARE QUE PROTEGE RUTAS (JWT)
+// =========================================================================
+function autenticarToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Formato: "Bearer <token>"
+
+  if (!token) {
+    return res.status(401).json({ error: 'Acceso denegado: Se requiere Token JWT' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, usuario) => {
+    if (err) {
+      return res.status(403).json({ error: 'Token no válido o expirado' });
+    }
+    req.usuario = usuario; // Datos guardados dentro del token
+    next(); // Continúa hacia la ruta solicitada
+  });
+}
+// =========================================================================
+
+
+// --- RUTAS PÚBLICAS (Sin token) ---
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -99,6 +127,7 @@ app.get('/api/productos', (req, res) => {
   });
 });
 
+// Registro: Genera y devuelve un token JWT al registrarse con éxito
 app.post('/api/registro', async (req, res) => {
   const { nombre, email, password } = req.body;
   if (!nombre || !email || !password) return res.status(400).json({ error: 'Campos incompletos' });
@@ -107,9 +136,20 @@ app.post('/api/registro', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
     db.query('INSERT INTO clientes (nombre, email, password_hash) VALUES (?, ?, ?)', 
       [nombre, email, passwordHash], 
-      (err) => {
+      (err, result) => {
         if (err) return res.status(500).json({ error: 'El correo ya existe o hubo un error' });
-        res.json({ mensaje: 'Usuario registrado de forma segura' });
+        
+        // Creamos el token JWT
+        const token = jwt.sign(
+          { email: email }, 
+          JWT_SECRET, 
+          { expiresIn: '2h' }
+        );
+
+        res.json({ 
+          mensaje: 'Usuario registrado de forma segura', 
+          token: token 
+        });
       }
     );
   } catch {
@@ -117,7 +157,11 @@ app.post('/api/registro', async (req, res) => {
   }
 });
 
-app.post('/api/comprar', (req, res) => {
+
+// --- RUTAS PROTEGIDAS (Requieren Token JWT) ---
+
+// Fíjate que añadimos 'autenticarToken' como segundo argumento:
+app.post('/api/comprar', autenticarToken, (req, res) => {
   const { id } = req.body;
   if (!id) return res.status(400).json({ error: 'ID de producto no enviado' });
 
@@ -127,7 +171,7 @@ app.post('/api/comprar', (req, res) => {
 
     db.query('UPDATE productos SET stock = stock - 1 WHERE id = ?', [id], (err) => {
       if (err) return res.status(500).json({ error: 'Error al procesar compra' });
-      res.json({ mensaje: 'Compra realizada con éxito' });
+      res.json({ mensaje: 'Compra realizada con éxito de forma autenticada' });
     });
   });
 });
